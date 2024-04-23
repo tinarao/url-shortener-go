@@ -7,7 +7,6 @@ import (
 )
 
 func JSON(key, value string, w http.ResponseWriter) {
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	resp := make(map[string]string)
 	resp[key] = value
