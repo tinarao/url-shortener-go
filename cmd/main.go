@@ -12,9 +12,13 @@ import (
 func main() {
 	router := mux.NewRouter()
 
+	router.HandleFunc("/{alias}", handlers.GetByAlias).Methods("GET")
 	router.HandleFunc("/shorten", handlers.Shortener).Methods("POST")
 	router.HandleFunc("/all", handlers.GetAllLinks).Methods("GET")
 	router.HandleFunc("/m/{linkID}", handlers.RedirectToShortened).Methods("GET")
+
+	// Debug purposes
+	router.HandleFunc("/delete/all", handlers.DeleteAllLings).Methods("DELETE")
 
 	db.Connect()
 
