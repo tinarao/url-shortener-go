@@ -5,8 +5,7 @@ import (
 	"github.com/tinarao/url-shortener-go/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -24,18 +23,22 @@ func Connect() {
 		os.Getenv("DB_NAME"),
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to pgsql:", err)
+		slog.Error("Failed to connect to pgsql:", err)
+		os.Exit(1)
 	}
 
-	log.Println("Connected to pgsql")
-	db.Logger = logger.Default.LogMode(logger.Info)
+	slog.Info("Connected to pgsql")
 
-	log.Println("Running migrations...")
-	db.AutoMigrate(&models.Link{})
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	slog.Info("Running migrations...")
+	if err := db.AutoMigrate(&models.Link{}); err != nil {
+		slog.Error("Failed to run auto migrations", err)
+		os.Exit(1)
+	}
 
 	DB = DbInstance{
 		Db: db,

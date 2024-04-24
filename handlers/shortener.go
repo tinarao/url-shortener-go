@@ -10,8 +10,10 @@ import (
 	"github.com/tinarao/url-shortener-go/helpers"
 	"github.com/tinarao/url-shortener-go/models"
 	"gorm.io/gorm"
+	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type Link struct {
@@ -23,7 +25,8 @@ func Shortener(w http.ResponseWriter, r *http.Request) {
 	link := &Link{}
 	err := json.NewDecoder(r.Body).Decode(&link)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Error("Error while decoding body", err)
+		helpers.JSON("message", "Произошла ошибка, попробуйте ещё раз", w)
 		return
 	}
 
@@ -48,6 +51,10 @@ func Shortener(w http.ResponseWriter, r *http.Request) {
 		// TODO: lib.GenerateAlias(len: 6)
 	}
 
+	if !strings.Contains(link.Link, "https://") {
+		link.Link = fmt.Sprintf("https://%v", link.Link)
+	}
+
 	doc := &models.Link{
 		OriginalLink: link.Link,
 		Alias:        link.Alias,
@@ -56,8 +63,11 @@ func Shortener(w http.ResponseWriter, r *http.Request) {
 	duplicate := &models.Link{}
 	if err := db.DB.Db.Where("alias = ?", link.Alias).First(&duplicate); err != nil {
 		if errors.Is(err.Error, gorm.ErrRecordNotFound) {
+
+			// ok scenario!
+
 			db.DB.Db.Create(&doc)
-			helpers.JSON("link", fmt.Sprintf("%v/m/%v", os.Getenv("SELF_URL"), doc.Alias), w)
+			helpers.JSON("link", fmt.Sprintf("%v/l/%v", os.Getenv("SELF_URL"), doc.Alias), w)
 			return
 		} else {
 			w.WriteHeader(400)
@@ -77,7 +87,9 @@ func GetAllLinks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 		helpers.JSON("message", "Произошла ошибка, попробуйте ещё раз", w)
+		return
 	}
+
 	return
 }
 
@@ -91,14 +103,14 @@ func RedirectToShortened(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, link.OriginalLink, http.StatusPermanentRedirect)
+	http.Redirect(w, r, link.OriginalLink, 302)
 	return
 }
 
-func DeleteAllLings(w http.ResponseWriter, r *http.Request) {
+func DeleteAllLinks(w http.ResponseWriter, r *http.Request) {
 
-	// blocked by default to prevent missclicks and stuff
 	if true {
+		// blocked by default to prevent missclicks and stuff
 		fmt.Fprintf(w, "Forbidden")
 		return
 	}
@@ -119,6 +131,7 @@ func DeleteAllLings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	helpers.JSON("message", fmt.Sprintf("Удалено %v аккаунтов", deletedAccounts), w)
+	return
 }
 
 func GetByAlias(w http.ResponseWriter, r *http.Request) {
@@ -134,9 +147,10 @@ func GetByAlias(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := json.Marshal(link)
 	if err != nil {
-		fmt.Println("Error while marshaling", err)
+		slog.Error("Error while marshaling", err)
 		return
 	}
 
 	fmt.Fprintf(w, string(resp))
+	return
 }
