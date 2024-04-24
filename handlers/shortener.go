@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/asaskevich/govalidator"
 	"github.com/gorilla/mux"
 	"github.com/tinarao/url-shortener-go/db"
 	"github.com/tinarao/url-shortener-go/helpers"
@@ -32,12 +33,19 @@ func Shortener(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	validURL := govalidator.IsURL(link.Link)
+	if !validURL {
+		w.WriteHeader(400)
+		helpers.JSON("message", "Provided URL is not valid", w)
+		return
+	}
+
 	if len(link.Alias) == 0 {
 		w.WriteHeader(400)
 		helpers.JSON("message", "Alias is not provided", w)
 		return
 
-		//lib.GenerateAlias(len: 6)
+		// TODO: lib.GenerateAlias(len: 6)
 	}
 
 	doc := &models.Link{
@@ -65,30 +73,35 @@ func GetAllLinks(w http.ResponseWriter, r *http.Request) {
 	db.DB.Db.Find(&links)
 
 	bytes, _ := json.Marshal(links)
-	fmt.Fprintf(w, string(bytes))
+	_, err := fmt.Fprintf(w, string(bytes))
+	if err != nil {
+		w.WriteHeader(500)
+		helpers.JSON("message", "Произошла ошибка, попробуйте ещё раз", w)
+	}
 	return
 }
 
 func RedirectToShortened(w http.ResponseWriter, r *http.Request) {
-	linkID := mux.Vars(r)["linkID"]
+	alias := mux.Vars(r)["alias"]
 	link := &models.Link{}
 
-	res := db.DB.Db.Where("id = ?", linkID).First(&link)
+	res := db.DB.Db.Where("alias = ?", alias).First(&link)
 	if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		helpers.JSON("link", os.Getenv("SELF_URL"), w)
 		return
 	}
 
-	helpers.JSON("link", link.OriginalLink, w)
+	http.Redirect(w, r, link.OriginalLink, http.StatusPermanentRedirect)
 	return
 }
 
 func DeleteAllLings(w http.ResponseWriter, r *http.Request) {
 
-	//if true {
-	//	fmt.Fprintf(w, "Forbidden")
-	//	return
-	//}
+	// blocked by default to prevent missclicks and stuff
+	if true {
+		fmt.Fprintf(w, "Forbidden")
+		return
+	}
 
 	var links []models.Link
 	deletedAccounts := 0
